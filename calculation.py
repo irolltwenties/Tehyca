@@ -5,9 +5,9 @@ import numpy as np
 
 from math import pi, log
 
-#КОНСТАНТЫ
-g = 9.80665 #ускорение свободного падения м/с**2
-#ФУНКЦИИ
+#Constants
+g = 9.80665 # m/s**2
+#functions
 def get_htc(alpha_water, alpha_steam, d_in, d_out, dtlog, therm_cond_material, thermal_pollution = 10**(-5)):
     htc = 1 / (d_out/(alpha_steam*d_in) + 1/alpha_water + \
                d_in * (log(d_out/d_in))/(2* therm_cond_material) + thermal_pollution)
@@ -147,10 +147,12 @@ def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, ve
 
 def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness):
     full_data = np.zeros(len(length_list), 14)
+    total_length = 0
     for counter in range(0, len(length_list)):
         if counter == 0:
             full_data[counter, 0] = tw_in
-        
-    pass
+            full_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness)
+            total_length += length_list[counter]
+    return full_data
 
 print(calculation_step(300, 1000000, 50, 340000, 0.3, 150, 0.014, 0.016, 17, 0.0001))
