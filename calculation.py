@@ -143,7 +143,7 @@ def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, ve
         elif round(heatsurface*1000) < round(heatsurface_check*1000): 
             pivot = list(searching_area).index(tw_out)
             searching_area = np.delete(searching_area, np.arange(pivot, len(searching_area) - 1))
-    return [htc, t_wall, tw_in, tw_out, pw_in - pressure_lost, (pw_in - pressure_lost) / pw_in]
+    return [htc, t_wall, tw_in, tw_out, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam]
 
 def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness):
     try:
@@ -155,7 +155,7 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
                             np.float64(roughness)
     except ValueError:
         return('ValueError at the start of calculation sequence')
-    calculated_data = np.zeros(len(length_list), 14)
+    #calculated_data = np.zeros(len(length_list), 14)
     total_length = 0
     
     '''
@@ -164,13 +164,13 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
             full_data[counter, 0] = tw_in
             full_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness)
             total_length += length_list[counter]
-            '''
-    return calculated_data
+            
+    return calculated_data'''
+    return calculation_step(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness)
 
-print(calculation_step(300, 1000000, 50, 340000, 0.3, 150, 0.014, 0.016, 17, 0.0001))
+print(calculation_sequence('300', '1000000', '50', '340000', '0.3', '150', '0.014', '0.016', '17', '0.0001'))
 
 
-mock = np.float64(0.3)
 
 
 
