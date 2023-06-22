@@ -156,8 +156,7 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
     except ValueError:
         return('ValueError at the start of calculation sequence')
     #calculated_data = np.zeros(len(length_list), 14)
-    total_length = 0
-    
+    total_length = 0    
     '''
     for counter in range(0, len(length_list)):
         if counter == 0:
