@@ -8,7 +8,7 @@ from math import pi, log
 #Constants
 g = 9.80665 # m/s**2
 #functions
-def get_htc(alpha_water, alpha_steam, d_in, d_out, dtlog, therm_cond_material, thermal_pollution = 10**(-5)):
+def get_htc(alpha_water, alpha_steam, d_in, d_out, dtlog, therm_cond_material, thermal_pollution = 10**(-6)):
     htc = 1 / (d_out/(alpha_steam*d_in) + 1/alpha_water + \
                d_in * (log(d_out/d_in))/(2* therm_cond_material) + thermal_pollution)
     return htc
@@ -52,9 +52,7 @@ def get_alpha_water(p_water, t_water, mass_flow, flow_area, hydr_d):
     therm_cond = cp.PropsSI('L', 'P', p_water, 'T', t_water, 'H2O')
     velocity = mass_flow/(flow_area * density)
     re = get_re(p_water, t_water, mass_flow, flow_area, hydr_d)
-    nu1 = (0.023 * (pr**0.33) * re ** 0.8)/(1 + 2.14 * (re ** (-0.1)) * (pr ** 0.7 - 1))
-    nu2 = 0.023*(re**0.8) * (pr**0.4)
-    nu = min(nu1, nu2)
+    nu = 0.023*(re**0.8) * (pr**0.4)
     return nu * therm_cond / hydr_d
 
 '''
@@ -143,7 +141,7 @@ def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, ve
         elif round(heatsurface*1000) < round(heatsurface_check*1000): 
             pivot = list(searching_area).index(tw_out)
             searching_area = np.delete(searching_area, np.arange(pivot, len(searching_area) - 1))
-    return [htc, t_wall, tw_in, tw_out, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam]
+    return [tw_in, tw_out, htc, t_wall, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam]
 
 def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness):
     try:
@@ -154,20 +152,21 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
                         np.float64(d_out), np.float64(velocity_steam), \
                             np.float64(roughness)
     except ValueError:
-        return('ValueError at the start of calculation sequence')
-    #calculated_data = np.zeros(len(length_list), 14)
-    total_length = 0    
-    '''
+        print('ValueError at the start of calculation sequence')
+        pass
+    
+    calculated_data = np.zeros((len(length_list), 8))
     for counter in range(0, len(length_list)):
         if counter == 0:
-            full_data[counter, 0] = tw_in
-            full_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness)
-            total_length += length_list[counter]
-            
-    return calculated_data'''
-    return calculation_step(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness)
+            calculated_data[counter, 0] = tw_in
+            calculated_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness)
+        else:
+            calculated_data[counter] = calculation_step(calculated_data[counter - 1, 1], pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness)           
+    return calculated_data
 
-print(calculation_sequence('300', '1000000', '50', '340000', '0.3', '150', '0.014', '0.016', '17', '0.0001'))
+length_list = ['0.375', '0.5', '0.5', '0.375']
+
+print(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
 
 
 
