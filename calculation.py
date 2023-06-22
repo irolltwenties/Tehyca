@@ -141,7 +141,7 @@ def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, ve
         elif round(heatsurface*1000) < round(heatsurface_check*1000): 
             pivot = list(searching_area).index(tw_out)
             searching_area = np.delete(searching_area, np.arange(pivot, len(searching_area) - 1))
-    return [tw_in, tw_out, htc, t_wall, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam]
+    return [tw_in, tw_out, htc, t_wall, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam, None]
 
 def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness):
     try:
@@ -155,13 +155,18 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
         print('ValueError at the start of calculation sequence')
         pass
     
-    calculated_data = np.zeros((len(length_list), 8))
+    calculated_data = np.zeros((len(length_list), 9))
+    total_length = 0
     for counter in range(0, len(length_list)):
         if counter == 0:
             calculated_data[counter, 0] = tw_in
             calculated_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness)
+            total_length += length_list[counter]
+            calculated_data[counter, 8] = total_length
         else:
-            calculated_data[counter] = calculation_step(calculated_data[counter - 1, 1], pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness)           
+            calculated_data[counter] = calculation_step(calculated_data[counter - 1, 1], pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness) 
+            total_length += length_list[counter]
+            calculated_data[counter, 8] = total_length
     return calculated_data
 
 length_list = ['0.375', '0.5', '0.5', '0.375']
