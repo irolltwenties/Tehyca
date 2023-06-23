@@ -5,6 +5,8 @@ import numpy as np
 
 from math import pi, log
 
+from plots import draw_main
+
 #Constants
 g = 9.80665 # m/s**2
 #functions
@@ -172,6 +174,8 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
 length_list = ['0.375', '0.5', '0.5', '0.375']
 
 print(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
+fig = draw_main(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
+fig.show()
 
 
 
