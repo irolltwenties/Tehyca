@@ -112,8 +112,10 @@ def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, ve
     ts = cp.PropsSI('T', 'P', ps, 'Q', 1, 'H2O')
     hw_in = cp.PropsSI('H', 'P', pw_in, 'T', tw_in, 'H2O')
     intube_flow_area = get_intube_flow_area(tubes, d_in)
-    
-    tw_out = 0.45*(ts + tw_in)
+    if ts - tw_in > 15:#старт предсказания
+        tw_out = tw_in + 10
+    else:
+        tw_out = 0.45*(ts + tw_in) #предсказание
     searching_area = np.arange(tw_in, tw_out, 0.001)
     heatsurface = length * tubes * pi * d_out
     heatsurface_check = 0
@@ -143,7 +145,7 @@ def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, ve
         elif round(heatsurface*1000) < round(heatsurface_check*1000): 
             pivot = list(searching_area).index(tw_out)
             searching_area = np.delete(searching_area, np.arange(pivot, len(searching_area) - 1))
-    return [tw_in, tw_out, htc, t_wall, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam, None]
+    return [tw_in, tw_out, htc, t_wall, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam, dtlog, None]
 
 def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness):
     try:
@@ -157,25 +159,25 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
         print('ValueError at the start of calculation sequence')
         pass
     
-    calculated_data = np.zeros((len(length_list), 9))
+    calculated_data = np.zeros((len(length_list), 10))
     total_length = 0
     for counter in range(0, len(length_list)):
         if counter == 0:
             calculated_data[counter, 0] = tw_in
             calculated_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness)
             total_length += length_list[counter]
-            calculated_data[counter, 8] = total_length
+            calculated_data[counter, 9] = total_length
         else:
             calculated_data[counter] = calculation_step(calculated_data[counter - 1, 1], pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness) 
             total_length += length_list[counter]
-            calculated_data[counter, 8] = total_length
+            calculated_data[counter, 9] = total_length
     return calculated_data
 
-length_list = ['0.375', '0.5', '0.5', '0.375']
+#length_list = ['0.375', '0.5', '0.5', '0.375']
 
-print(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
-fig = draw_main(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
-fig.show()
+#print(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
+#fig = draw_main(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
+#fig.show()
 
 
 
