@@ -5,7 +5,6 @@ import numpy as np
 
 from math import pi, log
 
-from plots import draw_main
 
 #Constants
 g = 9.80665 # m/s**2
@@ -57,6 +56,18 @@ def get_alpha_water(p_water, t_water, mass_flow, flow_area, hydr_d):
     nu = 0.023*(re**0.8) * (pr**0.4)
     return nu * therm_cond / hydr_d
 
+def get_alpha_water_pvt(p_water, t_water, mass_flow, flow_area, din, step, deep, lines_num):
+    density = cp.PropsSI('D', 'P', p_water, 'T', t_water, 'H2O')
+    viscosity = cp.PropsSI('V', 'P', p_water, 'T', t_water, 'H2O')
+    pr = cp.PropsSI('PRANDTL', 'P', p_water, 'T', t_water, 'H2O')
+    therm_cond = cp.PropsSI('L', 'P', p_water, 'T', t_water, 'H2O')
+    velocity = mass_flow/(flow_area * density)
+    re = get_re(p_water, t_water, mass_flow, flow_area, din)
+    nu = 0.023*(re**0.8) * (pr**0.4)
+    curve_length = ((lines_num * step)**2 + (pi*din)**2)**0.5
+    nu *= (1 + (338.6*deep/step)*(1 - 2*deep/din) - 1863.2 * ((deep/step) * (1 - 2*deep/din))**2) * re**(-0.43 * (deep/curve_length)**0.142)
+    return nu*therm_cond/din
+
 '''
 def get velocity_steam(ps, q, length, tubes, d_out):
     hs = cp.PropsSI('H', 'P', ps, 'Q', 1, 'H2O')
@@ -90,13 +101,15 @@ def get_alpha_steam(ps, q, heat_surface, length, velocity, t_wall):
     
     correction_density = (density / density_c) ** 0.5
     re_pl = (length * q / heat_surface) / ((hs - hs_c) * viscosity_c)
-    
-    if re_pl > 110:
+    #В этой области меняется монотонность функции (в связи с условием if и выбором формулы)
+    #Необходимо либо подобрать такую критериальную формулу, что монотонность не будет изменяться критическим образом
+    #Либо подобрать такую формулу, работающую в более широком диапазоне критериев, что монотонность сохранится, а условие if исчезнет.
+    if re_pl > 100:
         empiric_const = therm_cond_c * ((g / (kyn_viscosity_c ** 2)) ** 0.33)
         alpha_steam = empiric_const * 0.16 * (pr_c ** 0.33) * re_pl * \
             (1 + (0.013 * correction_density) * (velocity / 1.73) / \
              ((g * kyn_viscosity_c) ** 0.33)) / (re_pl - 100 + 63 * (pr_c ** 0.33))
-    elif 0 < re_pl <= 110:
+    elif 0 < re_pl <= 100:
         empiric_const = get_const(ts)
         wave_correlation = re_pl ** 0.04
         wall_correlation = ((therm_cond_w / therm_cond_c) ** 3) * (viscosity_c / viscosity_w) ** (0.125)
@@ -106,27 +119,39 @@ def get_alpha_steam(ps, q, heat_surface, length, velocity, t_wall):
     empiric_const = (velocity/((g * kyn_viscosity_c)**(1/3)))*((density/density_c)**(2/3)) * ((viscosity/viscosity_c)**0.1)* (pr_c**0.5)
     alpha_another = 0.925 * therm_cond_c * ((g / (kyn_viscosity_c**2))**(1/3)) * (re_pl**(-0.28)) * (1 + (0.075 * empiric_const)**3)**0.33
     
-    return min(alpha_steam, alpha_another)
+    return min(alpha_steam, alpha_another)*1.15
 
-def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, velocity_steam, roughness):
+def calculation_step(tw_in, pw_in, mass_flow, ps, length, 
+                     tubes, d_in, d_out, velocity_steam, 
+                     roughness, depth, step, line_number):
+    
     ts = cp.PropsSI('T', 'P', ps, 'Q', 1, 'H2O')
     hw_in = cp.PropsSI('H', 'P', pw_in, 'T', tw_in, 'H2O')
     intube_flow_area = get_intube_flow_area(tubes, d_in)
+    tw_out = tw_in + 13
+    if tw_out > ts:
+        tw_out = ts
+    '''
     if ts - tw_in > 15:#старт предсказания
         tw_out = tw_in + 10
     else:
         tw_out = 0.45*(ts + tw_in) #предсказание
-    searching_area = np.arange(tw_in, tw_out, 0.001)
+    '''
+    searching_area = np.arange(tw_in, tw_out, 0.0001) #шаг в этом arange влияет на сходимость результатов. Возможно, следует дать юзеру возможность его подбирать, хотя это костыль.
     heatsurface = length * tubes * pi * d_out
     heatsurface_check = 0
     
-    while round(heatsurface, 2) != round(heatsurface_check, 2):
-        
+    while np.round(heatsurface, 2) != np.round(heatsurface_check, 2):
+
         tw_out = searching_area[len(searching_area) // 2]
         hw_out = cp.PropsSI('H', 'P', pw_in, 'T', tw_out, 'H2O')
         tw_mid = 0.5 * (tw_in + tw_out)
         pressure_lost = get_pressure_loss(pw_in, tw_mid, mass_flow, intube_flow_area, d_in, roughness, length)
-        alpha_water = get_alpha_water(pw_in, tw_mid, mass_flow, intube_flow_area, d_in)
+        #alpha_water = get_alpha_water(pw_in, tw_mid, mass_flow, intube_flow_area, d_in)
+        
+        alpha_water = get_alpha_water_pvt(pw_in, tw_mid, mass_flow, 
+                                          intube_flow_area, d_in, 
+                                          step, depth, line_number)
         t_wall_check = 0.5 * (tw_mid + ts)
         t_wall = t_wall_check - 1
         q = mass_flow * (hw_out - hw_in)
@@ -135,19 +160,25 @@ def calculation_step(tw_in, pw_in, mass_flow, ps, length, tubes, d_in, d_out, ve
             t_wall = t_wall_check
             alpha_steam = get_alpha_steam(ps, q, heatsurface, length, velocity_steam, t_wall_check)
             t_wall_check = ts - q / (alpha_steam * heatsurface)
+            if t_wall_check < 273.15:
+                t_wall_check = 300
             
         dtlog = get_t_log(ts, tw_in, tw_out)    
-        htc = get_htc(alpha_water, alpha_steam, d_in, d_out, dtlog, 16)
+        htc = get_htc(alpha_water, alpha_steam, d_in, d_out, dtlog, 120)
         heatsurface_check = q / (htc * dtlog)
-        if round(heatsurface*1000) > round(heatsurface_check*1000): 
+        if np.round(heatsurface*1000) > np.round(heatsurface_check*1000): 
             pivot = list(searching_area).index(tw_out)
             searching_area = np.delete(searching_area, np.arange(0, pivot))
-        elif round(heatsurface*1000) < round(heatsurface_check*1000): 
+        elif np.round(heatsurface*1000) < np.round(heatsurface_check*1000): 
             pivot = list(searching_area).index(tw_out)
             searching_area = np.delete(searching_area, np.arange(pivot, len(searching_area) - 1))
-    return [tw_in, tw_out, htc, t_wall, pw_in - pressure_lost, pressure_lost / pw_in, alpha_water, alpha_steam, dtlog, None]
+            
+    return [tw_in, tw_out, htc, t_wall, pw_in - pressure_lost, q, alpha_water, alpha_steam, dtlog, None]
 
-def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, d_out, velocity_steam, roughness):
+def calculation_sequence(tw_in, pw_in, mass_flow, ps, 
+                         length_list, tubes, d_in, 
+                         d_out, velocity_steam, roughness, 
+                         depth, step, line_number):
     try:
         tw_in, pw_in, mass_flow, ps, length_list, \
             tubes, d_in, d_out, velocity_steam, roughness = np.float64(tw_in), \
@@ -164,20 +195,18 @@ def calculation_sequence(tw_in, pw_in, mass_flow, ps, length_list, tubes, d_in, 
     for counter in range(0, len(length_list)):
         if counter == 0:
             calculated_data[counter, 0] = tw_in
-            calculated_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness)
+            calculated_data[counter] = calculation_step(tw_in, pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness, depth, step, line_number)
             total_length += length_list[counter]
             calculated_data[counter, 9] = total_length
         else:
-            calculated_data[counter] = calculation_step(calculated_data[counter - 1, 1], pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness) 
+            calculated_data[counter] = calculation_step(calculated_data[counter - 1, 1], pw_in, mass_flow, ps, length_list[counter], tubes, d_in, d_out, velocity_steam, roughness, depth, step, line_number) 
             total_length += length_list[counter]
             calculated_data[counter, 9] = total_length
     return calculated_data
 
-#length_list = ['0.375', '0.5', '0.5', '0.375']
+#lenlist = [0.35, 0.35, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.35, 0.35] #real values
 
-#print(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
-#fig = draw_main(calculation_sequence('300', '1000000', '50', '340000', length_list, '150', '0.014', '0.016', '17', '0.0001'))
-#fig.show()
+#print(calculation_sequence(343.15, 1000000, 1500/3.6, 0.206*10**6, lenlist, 963, 0.019, 0.017, 5, 0.000001)) #real values
 
 
 
